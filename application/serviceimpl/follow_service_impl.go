@@ -63,7 +63,7 @@ func (s *FollowServiceImpl) Follow(ctx context.Context, followerID uuid.UUID, fo
 		followingID,
 		followerID,
 		"follow",
-		"started following you",
+		"เริ่มติดตามคุณ",
 		nil,
 		nil,
 	)

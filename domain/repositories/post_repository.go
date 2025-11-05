@@ -26,6 +26,7 @@ type PostRepository interface {
 	List(ctx context.Context, offset, limit int, sortBy PostSortBy) ([]*models.Post, error)
 	ListByAuthor(ctx context.Context, authorID uuid.UUID, offset, limit int) ([]*models.Post, error)
 	ListByTag(ctx context.Context, tagName string, offset, limit int, sortBy PostSortBy) ([]*models.Post, error)
+	ListByTagID(ctx context.Context, tagID uuid.UUID, offset, limit int, sortBy PostSortBy) ([]*models.Post, error)
 
 	// Search
 	Search(ctx context.Context, query string, offset, limit int) ([]*models.Post, error)

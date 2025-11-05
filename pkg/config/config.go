@@ -13,6 +13,7 @@ type Config struct {
 	JWT      JWTConfig
 	Bunny    BunnyConfig
 	OAuth    OAuthConfig
+	VAPID    VAPIDConfig
 }
 
 type AppConfig struct {
@@ -59,6 +60,12 @@ type GoogleOAuthConfig struct {
 	RedirectURL  string
 }
 
+type VAPIDConfig struct {
+	PublicKey  string
+	PrivateKey string
+	Subject    string
+}
+
 func LoadConfig() (*Config, error) {
 	// Load .env file if it exists (for local development)
 	// In production/Docker, environment variables are set by the container
@@ -102,6 +109,11 @@ func LoadConfig() (*Config, error) {
 				ClientSecret: getEnv("GOOGLE_CLIENT_SECRET", ""),
 				RedirectURL:  getEnv("GOOGLE_REDIRECT_URL", "http://localhost:8080/api/v1/auth/google/callback"),
 			},
+		},
+		VAPID: VAPIDConfig{
+			PublicKey:  getEnv("VAPID_PUBLIC_KEY", ""),
+			PrivateKey: getEnv("VAPID_PRIVATE_KEY", ""),
+			Subject:    getEnv("VAPID_SUBJECT", "mailto:admin@voobize.com"),
 		},
 	}
 

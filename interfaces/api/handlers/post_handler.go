@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"log"
 	"strconv"
 
 	"github.com/gofiber/fiber/v2"
@@ -122,6 +123,13 @@ func (h *PostHandler) ListPosts(c *fiber.Ctx) error {
 	limit, _ := strconv.Atoi(c.Query("limit", "20"))
 	sortBy := c.Query("sort", "hot") // hot, new, top, controversial
 
+	// Check if filtering by tag (query param) - รองรับภาษาไทย
+	tagQuery := c.Query("tag")
+	if tagQuery != "" {
+		log.Printf("🏷️  Searching posts by tag (query param): '%s'", tagQuery)
+		return h.listPostsByTagQuery(c, tagQuery, offset, limit, sortBy)
+	}
+
 	// Validate and convert sortBy
 	var sortByEnum repositories.PostSortBy
 	switch sortBy {
@@ -144,6 +152,34 @@ func (h *PostHandler) ListPosts(c *fiber.Ctx) error {
 	}
 
 	posts, err := h.postService.ListPosts(c.Context(), offset, limit, sortByEnum, userIDPtr)
+	if err != nil {
+		return utils.ErrorResponse(c, fiber.StatusInternalServerError, "Failed to retrieve posts", err)
+	}
+
+	return utils.SuccessResponse(c, "Posts retrieved successfully", posts)
+}
+
+// Helper function to handle tag filtering via query param
+func (h *PostHandler) listPostsByTagQuery(c *fiber.Ctx, tagName string, offset, limit int, sortBy string) error {
+	var sortByEnum repositories.PostSortBy
+	switch sortBy {
+	case "hot":
+		sortByEnum = repositories.SortByHot
+	case "new":
+		sortByEnum = repositories.SortByNew
+	case "top":
+		sortByEnum = repositories.SortByTop
+	default:
+		sortByEnum = repositories.SortByHot
+	}
+
+	// Get userID if authenticated (optional)
+	var userIDPtr *uuid.UUID
+	if userID, ok := c.Locals("userID").(uuid.UUID); ok {
+		userIDPtr = &userID
+	}
+
+	posts, err := h.postService.ListPostsByTag(c.Context(), tagName, offset, limit, sortByEnum, userIDPtr)
 	if err != nil {
 		return utils.ErrorResponse(c, fiber.StatusInternalServerError, "Failed to retrieve posts", err)
 	}
@@ -182,6 +218,10 @@ func (h *PostHandler) ListPostsByTag(c *fiber.Ctx) error {
 		return utils.ValidationErrorResponse(c, "Tag name is required")
 	}
 
+	// URL decode (Fiber should auto-decode, but just in case)
+	// Log for debugging
+	log.Printf("🏷️  Searching for tag: '%s' (len: %d)", tagName, len(tagName))
+
 	offset, _ := strconv.Atoi(c.Query("offset", "0"))
 	limit, _ := strconv.Atoi(c.Query("limit", "20"))
 	sortBy := c.Query("sort", "hot")
@@ -205,6 +245,43 @@ func (h *PostHandler) ListPostsByTag(c *fiber.Ctx) error {
 	}
 
 	posts, err := h.postService.ListPostsByTag(c.Context(), tagName, offset, limit, sortByEnum, userIDPtr)
+	if err != nil {
+		return utils.ErrorResponse(c, fiber.StatusInternalServerError, "Failed to retrieve posts", err)
+	}
+
+	return utils.SuccessResponse(c, "Posts retrieved successfully", posts)
+}
+
+// ListPostsByTagID retrieves posts by tag ID
+func (h *PostHandler) ListPostsByTagID(c *fiber.Ctx) error {
+	tagID, err := uuid.Parse(c.Params("tagId"))
+	if err != nil {
+		return utils.ValidationErrorResponse(c, "Invalid tag ID")
+	}
+
+	offset, _ := strconv.Atoi(c.Query("offset", "0"))
+	limit, _ := strconv.Atoi(c.Query("limit", "20"))
+	sortBy := c.Query("sort", "hot")
+
+	var sortByEnum repositories.PostSortBy
+	switch sortBy {
+	case "hot":
+		sortByEnum = repositories.SortByHot
+	case "new":
+		sortByEnum = repositories.SortByNew
+	case "top":
+		sortByEnum = repositories.SortByTop
+	default:
+		sortByEnum = repositories.SortByHot
+	}
+
+	// Get userID if authenticated (optional)
+	var userIDPtr *uuid.UUID
+	if userID, ok := c.Locals("userID").(uuid.UUID); ok {
+		userIDPtr = &userID
+	}
+
+	posts, err := h.postService.ListPostsByTagID(c.Context(), tagID, offset, limit, sortByEnum, userIDPtr)
 	if err != nil {
 		return utils.ErrorResponse(c, fiber.StatusInternalServerError, "Failed to retrieve posts", err)
 	}

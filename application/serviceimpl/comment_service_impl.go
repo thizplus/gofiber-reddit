@@ -89,7 +89,7 @@ func (s *CommentServiceImpl) CreateComment(ctx context.Context, userID uuid.UUID
 				parentComment.AuthorID,
 				userID,
 				"reply",
-				"replied to your comment",
+				"ตอบกลับความคิดเห็นของคุณ",
 				&req.PostID,
 				&comment.ID,
 			)
@@ -102,7 +102,7 @@ func (s *CommentServiceImpl) CreateComment(ctx context.Context, userID uuid.UUID
 				post.AuthorID,
 				userID,
 				"reply",
-				"commented on your post",
+				"แสดงความคิดเห็นในโพสต์ของคุณ",
 				&req.PostID,
 				&comment.ID,
 			)

@@ -3,6 +3,7 @@ package serviceimpl
 import (
 	"context"
 	"errors"
+	"log"
 	"time"
 
 	"github.com/google/uuid"
@@ -10,12 +11,14 @@ import (
 	"gofiber-template/domain/models"
 	"gofiber-template/domain/repositories"
 	"gofiber-template/domain/services"
+	"gofiber-template/infrastructure/websocket"
 )
 
 type NotificationServiceImpl struct {
 	notifRepo         repositories.NotificationRepository
 	notifSettingsRepo repositories.NotificationSettingsRepository
 	userRepo          repositories.UserRepository
+	pushService       services.PushService
 }
 
 func NewNotificationService(
@@ -27,7 +30,13 @@ func NewNotificationService(
 		notifRepo:         notifRepo,
 		notifSettingsRepo: notifSettingsRepo,
 		userRepo:          userRepo,
+		pushService:       nil, // Will be set later via SetPushService
 	}
+}
+
+// SetPushService sets the push service (to avoid circular dependency)
+func (s *NotificationServiceImpl) SetPushService(pushService services.PushService) {
+	s.pushService = pushService
 }
 
 func (s *NotificationServiceImpl) GetNotifications(ctx context.Context, userID uuid.UUID, offset, limit int) (*dto.NotificationListResponse, error) {
@@ -115,11 +124,32 @@ func (s *NotificationServiceImpl) MarkAsRead(ctx context.Context, notificationID
 		return errors.New("unauthorized: not notification owner")
 	}
 
-	return s.notifRepo.MarkAsRead(ctx, notificationID)
+	err = s.notifRepo.MarkAsRead(ctx, notificationID)
+	if err != nil {
+		return err
+	}
+
+	// Send real-time update via WebSocket
+	websocket.Manager.BroadcastToUser(userID, "notification_read", map[string]interface{}{
+		"notificationId": notificationID,
+		"unreadCount":    s.getUnreadCount(ctx, userID),
+	})
+
+	return nil
 }
 
 func (s *NotificationServiceImpl) MarkAllAsRead(ctx context.Context, userID uuid.UUID) error {
-	return s.notifRepo.MarkAllAsRead(ctx, userID)
+	err := s.notifRepo.MarkAllAsRead(ctx, userID)
+	if err != nil {
+		return err
+	}
+
+	// Send real-time update via WebSocket
+	websocket.Manager.BroadcastToUser(userID, "notification_read_all", map[string]interface{}{
+		"unreadCount": 0,
+	})
+
+	return nil
 }
 
 func (s *NotificationServiceImpl) DeleteNotification(ctx context.Context, notificationID uuid.UUID, userID uuid.UUID) error {
@@ -223,7 +253,74 @@ func (s *NotificationServiceImpl) CreateNotification(ctx context.Context, userID
 		CreatedAt: time.Now(),
 	}
 
-	return s.notifRepo.Create(ctx, notification)
+	// Create notification in database
+	err := s.notifRepo.Create(ctx, notification)
+	if err != nil {
+		return err
+	}
+
+	// Fetch notification with relations for real-time broadcast
+	createdNotification, err := s.notifRepo.GetByID(ctx, notification.ID)
+	if err != nil {
+		log.Printf("Warning: Failed to fetch notification for WebSocket broadcast: %v", err)
+		return nil // Don't fail the whole operation
+	}
+
+	// Convert to DTO
+	notificationDTO := dto.NotificationToNotificationResponse(createdNotification)
+
+	// Send real-time notification via WebSocket
+	websocket.Manager.BroadcastToUser(userID, "notification", map[string]interface{}{
+		"notification": notificationDTO,
+		"unreadCount":  s.getUnreadCount(ctx, userID),
+	})
+
+	log.Printf("📬 Real-time notification sent to user %s: %s", userID.String(), message)
+
+	// Send push notification (if user is offline and pushService is available)
+	if s.pushService != nil {
+		// Prepare push payload
+		pushPayload := &dto.PushNotificationPayload{
+			Title: "VOOBIZE",
+			Body:  message,
+			Icon:  "/logo.png",
+			Badge: "/logo.png",
+			Tag:   notifType,
+			Data: map[string]interface{}{
+				"notificationId": notification.ID.String(),
+				"url":            s.buildNotificationURL(postID, commentID),
+			},
+		}
+
+		// Send push notification (non-blocking)
+		go func() {
+			if err := s.pushService.SendToUser(context.Background(), userID, pushPayload); err != nil {
+				log.Printf("⚠️  Failed to send push notification: %v", err)
+			}
+		}()
+	}
+
+	return nil
+}
+
+// Helper function to get unread count
+func (s *NotificationServiceImpl) getUnreadCount(ctx context.Context, userID uuid.UUID) int64 {
+	count, err := s.notifRepo.CountUnreadByUser(ctx, userID)
+	if err != nil {
+		return 0
+	}
+	return count
+}
+
+// Helper function to build notification URL
+func (s *NotificationServiceImpl) buildNotificationURL(postID, commentID *uuid.UUID) string {
+	if commentID != nil {
+		return "/post/" + postID.String() + "#comment-" + commentID.String()
+	}
+	if postID != nil {
+		return "/post/" + postID.String()
+	}
+	return "/notifications"
 }
 
 var _ services.NotificationService = (*NotificationServiceImpl)(nil)

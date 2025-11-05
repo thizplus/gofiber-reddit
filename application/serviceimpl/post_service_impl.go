@@ -217,6 +217,21 @@ func (s *PostServiceImpl) ListPostsByTag(ctx context.Context, tagName string, of
 	return s.buildPostListResponse(ctx, posts, count, offset, limit, userID)
 }
 
+func (s *PostServiceImpl) ListPostsByTagID(ctx context.Context, tagID uuid.UUID, offset, limit int, sortBy repositories.PostSortBy, userID *uuid.UUID) (*dto.PostListResponse, error) {
+	posts, err := s.postRepo.ListByTagID(ctx, tagID, offset, limit, sortBy)
+	if err != nil {
+		return nil, err
+	}
+
+	// For tag-filtered lists, we'll use a simplified count
+	count := int64(len(posts))
+	if len(posts) == limit {
+		count = int64(offset + limit + 1) // Approximate
+	}
+
+	return s.buildPostListResponse(ctx, posts, count, offset, limit, userID)
+}
+
 func (s *PostServiceImpl) SearchPosts(ctx context.Context, query string, offset, limit int, userID *uuid.UUID) (*dto.PostListResponse, error) {
 	posts, err := s.postRepo.Search(ctx, query, offset, limit)
 	if err != nil {

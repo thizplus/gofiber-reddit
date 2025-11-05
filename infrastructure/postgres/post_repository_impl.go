@@ -3,6 +3,7 @@ package postgres
 import (
 	"context"
 	"fmt"
+	"log"
 	"time"
 
 	"gofiber-template/domain/models"
@@ -107,6 +108,10 @@ func (r *PostRepositoryImpl) ListByAuthor(ctx context.Context, authorID uuid.UUI
 
 func (r *PostRepositoryImpl) ListByTag(ctx context.Context, tagName string, offset, limit int, sortBy repositories.PostSortBy) ([]*models.Post, error) {
 	var posts []*models.Post
+
+	// Debug logging
+	log.Printf("🔍 Repository searching for tag: '%s'", tagName)
+
 	query := r.db.WithContext(ctx).
 		Preload("Author").
 		Preload("Media").
@@ -117,7 +122,35 @@ func (r *PostRepositoryImpl) ListByTag(ctx context.Context, tagName string, offs
 		Preload("SourcePost.Tags").
 		Joins("JOIN post_tags ON post_tags.post_id = posts.id").
 		Joins("JOIN tags ON tags.id = post_tags.tag_id").
-		Where("tags.name = ? AND posts.is_deleted = ?", tagName, false)
+		Where("LOWER(TRIM(tags.name)) = LOWER(TRIM(?)) AND posts.is_deleted = ?", tagName, false)
+
+	switch sortBy {
+	case repositories.SortByHot:
+		query = query.Order(r.hotScoreSQL() + " DESC")
+	case repositories.SortByNew:
+		query = query.Order("posts.created_at DESC")
+	case repositories.SortByTop:
+		query = query.Order("posts.votes DESC")
+	default:
+		query = query.Order("posts.created_at DESC")
+	}
+
+	err := query.Offset(offset).Limit(limit).Find(&posts).Error
+	return posts, err
+}
+
+func (r *PostRepositoryImpl) ListByTagID(ctx context.Context, tagID uuid.UUID, offset, limit int, sortBy repositories.PostSortBy) ([]*models.Post, error) {
+	var posts []*models.Post
+	query := r.db.WithContext(ctx).
+		Preload("Author").
+		Preload("Media").
+		Preload("Tags").
+		Preload("SourcePost").
+		Preload("SourcePost.Author").
+		Preload("SourcePost.Media").
+		Preload("SourcePost.Tags").
+		Joins("JOIN post_tags ON post_tags.post_id = posts.id").
+		Where("post_tags.tag_id = ? AND posts.is_deleted = ?", tagID, false)
 
 	switch sortBy {
 	case repositories.SortByHot:
@@ -261,7 +294,7 @@ func (r *PostRepositoryImpl) hotScoreSQL() string {
 	// Calculate hours since post creation
 	// Hot score = votes / (hours_since_creation + 2)^1.5
 	return fmt.Sprintf(
-		"votes / POWER((EXTRACT(EPOCH FROM (NOW() - created_at)) / 3600.0) + 2, %.1f)",
+		"posts.votes / POWER((EXTRACT(EPOCH FROM (NOW() - posts.created_at)) / 3600.0) + 2, %.1f)",
 		1.5,
 	)
 }

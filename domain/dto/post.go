@@ -53,3 +53,11 @@ type PostFeedResponse struct {
 	Posts []PostResponse `json:"posts"`
 	Meta  PaginationMeta `json:"meta"`
 }
+
+// PostSummaryResponse - Lightweight post info for nested responses (comments, etc.)
+type PostSummaryResponse struct {
+	ID        uuid.UUID    `json:"id"`
+	Title     string       `json:"title"`
+	Author    UserResponse `json:"author"`
+	CreatedAt time.Time    `json:"createdAt"`
+}

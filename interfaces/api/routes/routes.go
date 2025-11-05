@@ -9,12 +9,16 @@ func SetupRoutes(app *fiber.App, h *handlers.Handlers) {
 	// Setup health and root routes
 	SetupHealthRoutes(app)
 
+	// Setup SEO routes (needs app, not api group)
+	SetupSEORoutes(app, h)
+
 	// API version group
 	api := app.Group("/api/v1")
 
 	// Setup authentication routes
 	SetupAuthRoutes(api, h)
 	SetupUserRoutes(api, h)
+	SetupProfileRoutes(api, h)
 
 	// Setup social media routes
 	SetupPostRoutes(api, h)
@@ -26,6 +30,7 @@ func SetupRoutes(app *fiber.App, h *handlers.Handlers) {
 	SetupTagRoutes(api, h)
 	SetupSearchRoutes(api, h)
 	SetupMediaRoutes(api, h)
+	SetupPushRoutes(api, h)
 
 	// Setup legacy routes (can be removed if not needed)
 	SetupTaskRoutes(api, h)

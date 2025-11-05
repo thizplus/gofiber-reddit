@@ -85,7 +85,7 @@ func (s *VoteServiceImpl) Vote(ctx context.Context, userID uuid.UUID, req *dto.V
 						post.AuthorID,
 						userID,
 						"vote",
-						"upvoted your post",
+						"ถูกใจโพสต์ของคุณ",
 						&req.TargetID,
 						nil,
 					)
@@ -103,7 +103,7 @@ func (s *VoteServiceImpl) Vote(ctx context.Context, userID uuid.UUID, req *dto.V
 						comment.AuthorID,
 						userID,
 						"vote",
-						"upvoted your comment",
+						"ถูกใจความคิดเห็นของคุณ",
 						&comment.PostID,
 						&req.TargetID,
 					)

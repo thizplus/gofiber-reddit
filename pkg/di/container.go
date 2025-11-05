@@ -39,6 +39,7 @@ type Container struct {
 	SavedPostRepository            repositories.SavedPostRepository
 	NotificationRepository         repositories.NotificationRepository
 	NotificationSettingsRepository repositories.NotificationSettingsRepository
+	PushSubscriptionRepository     repositories.PushSubscriptionRepository
 	TagRepository                  repositories.TagRepository
 	SearchHistoryRepository        repositories.SearchHistoryRepository
 	MediaRepository                repositories.MediaRepository
@@ -56,6 +57,7 @@ type Container struct {
 	FollowService       services.FollowService
 	SavedPostService    services.SavedPostService
 	NotificationService services.NotificationService
+	PushService         services.PushService
 	TagService          services.TagService
 	SearchService       services.SearchService
 	MediaService        services.MediaService
@@ -168,17 +170,18 @@ func (c *Container) initRepositories() error {
 	c.SavedPostRepository = postgres.NewSavedPostRepository(c.DB)
 	c.NotificationRepository = postgres.NewNotificationRepository(c.DB)
 	c.NotificationSettingsRepository = postgres.NewNotificationSettingsRepository(c.DB)
+	c.PushSubscriptionRepository = postgres.NewPushSubscriptionRepository(c.DB)
 	c.TagRepository = postgres.NewTagRepository(c.DB)
 	c.SearchHistoryRepository = postgres.NewSearchHistoryRepository(c.DB)
 	c.MediaRepository = postgres.NewMediaRepository(c.DB)
 
-	log.Println("✓ Repositories initialized (14 repositories)")
+	log.Println("✓ Repositories initialized (15 repositories)")
 	return nil
 }
 
 func (c *Container) initServices() error {
 	// Legacy services
-	c.UserService = serviceimpl.NewUserService(c.UserRepository, c.Config.JWT.Secret)
+	c.UserService = serviceimpl.NewUserService(c.UserRepository, c.FollowRepository, c.Config.JWT.Secret)
 	c.TaskService = serviceimpl.NewTaskService(c.TaskRepository, c.UserRepository)
 	c.FileService = serviceimpl.NewFileService(c.FileRepository, c.UserRepository, c.BunnyStorage)
 
@@ -192,6 +195,10 @@ func (c *Container) initServices() error {
 		c.NotificationRepository,
 		c.NotificationSettingsRepository,
 		c.UserRepository,
+	)
+	c.PushService = serviceimpl.NewPushService(
+		c.PushSubscriptionRepository,
+		c.Config,
 	)
 
 	// 2. Depends on TagService
@@ -243,7 +250,12 @@ func (c *Container) initServices() error {
 		c.BunnyStorage,
 	)
 
-	log.Println("✓ Services initialized (14 services)")
+	// Set push service for notification service (to avoid circular dependency)
+	if notifService, ok := c.NotificationService.(*serviceimpl.NotificationServiceImpl); ok {
+		notifService.SetPushService(c.PushService)
+	}
+
+	log.Println("✓ Services initialized (15 services)")
 	return nil
 }
 
@@ -345,6 +357,7 @@ func (c *Container) GetHandlerServices() *handlers.Services {
 		FollowService:       c.FollowService,
 		SavedPostService:    c.SavedPostService,
 		NotificationService: c.NotificationService,
+		PushService:         c.PushService,
 		TagService:          c.TagService,
 		SearchService:       c.SearchService,
 		MediaService:        c.MediaService,

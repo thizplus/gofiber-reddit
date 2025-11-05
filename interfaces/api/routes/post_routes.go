@@ -14,6 +14,7 @@ func SetupPostRoutes(api fiber.Router, h *handlers.Handlers) {
 	posts.Get("/:id", middleware.Optional(), h.PostHandler.GetPost)
 	posts.Get("/author/:authorId", middleware.Optional(), h.PostHandler.ListPostsByAuthor)
 	posts.Get("/tag/:tagName", middleware.Optional(), h.PostHandler.ListPostsByTag)
+	posts.Get("/tag-id/:tagId", middleware.Optional(), h.PostHandler.ListPostsByTagID)
 	posts.Get("/search", middleware.Optional(), h.PostHandler.SearchPosts)
 	posts.Get("/:id/crossposts", middleware.Optional(), h.PostHandler.GetCrossposts)
 

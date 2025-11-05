@@ -21,11 +21,13 @@ type Services struct {
 	SearchService       services.SearchService
 	MediaService        services.MediaService
 	OAuthService        services.OAuthService
+	PushService         services.PushService
 }
 
 // Handlers contains all HTTP handlers
 type Handlers struct {
 	UserHandler         *UserHandler
+	ProfileHandler      *ProfileHandler
 	TaskHandler         *TaskHandler
 	FileHandler         *FileHandler
 	JobHandler          *JobHandler
@@ -39,12 +41,15 @@ type Handlers struct {
 	SearchHandler       *SearchHandler
 	MediaHandler        *MediaHandler
 	OAuthHandler        *OAuthHandler
+	SEOHandler          *SEOHandler
+	PushHandler         *PushHandler
 }
 
 // NewHandlers creates a new instance of Handlers with all dependencies
 func NewHandlers(services *Services, cfg *config.Config) *Handlers {
 	return &Handlers{
 		UserHandler:         NewUserHandler(services.UserService),
+		ProfileHandler:      NewProfileHandler(services.UserService),
 		TaskHandler:         NewTaskHandler(services.TaskService),
 		FileHandler:         NewFileHandler(services.FileService),
 		JobHandler:          NewJobHandler(services.JobService),
@@ -58,5 +63,7 @@ func NewHandlers(services *Services, cfg *config.Config) *Handlers {
 		SearchHandler:       NewSearchHandler(services.SearchService),
 		MediaHandler:        NewMediaHandler(services.MediaService),
 		OAuthHandler:        NewOAuthHandler(services.OAuthService, cfg),
+		SEOHandler:          NewSEOHandler(services.PostService, cfg),
+		PushHandler:         NewPushHandler(services.PushService),
 	}
 }

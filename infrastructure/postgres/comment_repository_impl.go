@@ -79,6 +79,7 @@ func (r *CommentRepositoryImpl) ListByAuthor(ctx context.Context, authorID uuid.
 	err := r.db.WithContext(ctx).
 		Preload("Author").
 		Preload("Post").
+		Preload("Post.Author").
 		Where("author_id = ? AND is_deleted = ?", authorID, false).
 		Order("created_at DESC").
 		Offset(offset).Limit(limit).

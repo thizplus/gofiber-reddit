@@ -15,14 +15,16 @@ import (
 )
 
 type UserServiceImpl struct {
-	userRepo  repositories.UserRepository
-	jwtSecret string
+	userRepo   repositories.UserRepository
+	followRepo repositories.FollowRepository
+	jwtSecret  string
 }
 
-func NewUserService(userRepo repositories.UserRepository, jwtSecret string) services.UserService {
+func NewUserService(userRepo repositories.UserRepository, followRepo repositories.FollowRepository, jwtSecret string) services.UserService {
 	return &UserServiceImpl{
-		userRepo:  userRepo,
-		jwtSecret: jwtSecret,
+		userRepo:   userRepo,
+		followRepo: followRepo,
+		jwtSecret:  jwtSecret,
 	}
 }
 
@@ -91,6 +93,32 @@ func (s *UserServiceImpl) GetProfile(ctx context.Context, userID uuid.UUID) (*mo
 		return nil, errors.New("user not found")
 	}
 	return user, nil
+}
+
+func (s *UserServiceImpl) GetPublicProfile(ctx context.Context, username string, currentUserID *uuid.UUID) (*dto.UserResponse, error) {
+	// Get user by username
+	user, err := s.userRepo.GetByUsername(ctx, username)
+	if err != nil {
+		return nil, errors.New("user not found")
+	}
+
+	// Convert to UserResponse
+	userResponse := dto.UserToUserResponse(user)
+
+	// Clear email field for non-owner views
+	if currentUserID == nil || *currentUserID != user.ID {
+		userResponse.Email = ""
+	}
+
+	// Check if current user is following this user
+	if currentUserID != nil && *currentUserID != user.ID {
+		isFollowing, err := s.followRepo.IsFollowing(ctx, *currentUserID, user.ID)
+		if err == nil {
+			userResponse.IsFollowing = &isFollowing
+		}
+	}
+
+	return userResponse, nil
 }
 
 func (s *UserServiceImpl) UpdateProfile(ctx context.Context, userID uuid.UUID, req *dto.UpdateUserRequest) (*models.User, error) {

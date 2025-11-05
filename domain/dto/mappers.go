@@ -1,6 +1,7 @@
 package dto
 
 import (
+	"github.com/google/uuid"
 	"gofiber-template/domain/models"
 )
 
@@ -185,7 +186,7 @@ func CommentToCommentResponse(comment *models.Comment) *CommentResponse {
 		return nil
 	}
 
-	return &CommentResponse{
+	resp := &CommentResponse{
 		ID:        comment.ID,
 		PostID:    comment.PostID,
 		ParentID:  comment.ParentID,
@@ -196,6 +197,27 @@ func CommentToCommentResponse(comment *models.Comment) *CommentResponse {
 		IsDeleted: comment.IsDeleted,
 		CreatedAt: comment.CreatedAt,
 		UpdatedAt: comment.UpdatedAt,
+	}
+
+	// Map post summary if available
+	if comment.Post.ID != (uuid.UUID{}) {
+		resp.Post = PostToPostSummaryResponse(&comment.Post)
+	}
+
+	return resp
+}
+
+// PostToPostSummaryResponse converts a Post model to a lightweight PostSummaryResponse
+func PostToPostSummaryResponse(post *models.Post) *PostSummaryResponse {
+	if post == nil {
+		return nil
+	}
+
+	return &PostSummaryResponse{
+		ID:        post.ID,
+		Title:     post.Title,
+		Author:    *UserToUserResponse(&post.Author),
+		CreatedAt: post.CreatedAt,
 	}
 }
 

@@ -20,20 +20,21 @@ type UpdateCommentRequest struct {
 
 // CommentResponse - Response for a single comment
 type CommentResponse struct {
-	ID        uuid.UUID    `json:"id"`
-	PostID    uuid.UUID    `json:"postId"`
-	ParentID  *uuid.UUID   `json:"parentId,omitempty"`
-	Author    UserResponse `json:"author"`
-	Content   string       `json:"content"`
-	Votes     int          `json:"votes"`
-	Depth     int          `json:"depth"`
-	CreatedAt time.Time    `json:"createdAt"`
-	UpdatedAt time.Time    `json:"updatedAt"`
+	ID        uuid.UUID            `json:"id"`
+	PostID    uuid.UUID            `json:"postId"`
+	Post      *PostSummaryResponse `json:"post,omitempty"` // Post info (title, author)
+	ParentID  *uuid.UUID           `json:"parentId,omitempty"`
+	Author    UserResponse         `json:"author"`
+	Content   string               `json:"content"`
+	Votes     int                  `json:"votes"`
+	Depth     int                  `json:"depth"`
+	CreatedAt time.Time            `json:"createdAt"`
+	UpdatedAt time.Time            `json:"updatedAt"`
 
 	// User-specific fields (when authenticated)
-	UserVote    *string `json:"userVote,omitempty"`    // "up", "down", or null
-	ReplyCount  *int    `json:"replyCount,omitempty"`  // Number of direct replies
-	IsDeleted   bool    `json:"isDeleted"`
+	UserVote   *string `json:"userVote,omitempty"`   // "up", "down", or null
+	ReplyCount *int    `json:"replyCount,omitempty"` // Number of direct replies
+	IsDeleted  bool    `json:"isDeleted"`
 }
 
 // CommentWithRepliesResponse - Comment with nested replies

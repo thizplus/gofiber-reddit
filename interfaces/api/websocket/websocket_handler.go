@@ -2,6 +2,7 @@ package websocket
 
 import (
 	"log"
+	"os"
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/websocket/v2"
 	"github.com/google/uuid"
@@ -30,6 +31,21 @@ func (h *WebSocketHandler) HandleWebSocket(c *websocket.Conn) {
 	if userContext := c.Locals("user"); userContext != nil {
 		if user, ok := userContext.(*utils.UserContext); ok {
 			userID = user.ID
+		}
+	}
+
+	// If no user from middleware, try token from query parameter
+	if userID == uuid.Nil {
+		token := c.Query("token")
+		if token != "" {
+			jwtSecret := os.Getenv("JWT_SECRET")
+			userCtx, err := utils.ValidateTokenStringToUUID(token, jwtSecret)
+			if err == nil {
+				userID = userCtx.ID
+				log.Printf("✅ WebSocket: Token validated from query param for user: %s (%s)", userCtx.Email, userCtx.ID)
+			} else {
+				log.Printf("⚠️  WebSocket: Invalid token from query param: %v", err)
+			}
 		}
 	}
 

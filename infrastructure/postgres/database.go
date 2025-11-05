@@ -47,6 +47,7 @@ func Migrate(db *gorm.DB) error {
 		// Notifications
 		&models.Notification{},
 		&models.NotificationSettings{},
+		&models.PushSubscription{},
 
 		// Tags
 		&models.Tag{},
