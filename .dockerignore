@@ -1,0 +1,81 @@
+# Temporary files
+tmp/
+*.tmp
+*.swp
+*.swo
+*~
+
+# Logs
+*.log
+logs/
+
+# Environment files
+.env
+.env.*
+!.env.example
+
+# Dependencies
+node_modules/
+vendor/
+
+# Build artifacts
+bin/
+*.exe
+*.dll
+*.so
+*.dylib
+main
+main.exe
+
+# Git
+.git/
+.gitignore
+.gitattributes
+
+# Documentation
+README.md
+*.md
+docs/
+
+# Docker files
+Dockerfile*
+docker-compose*.yml
+.dockerignore
+
+# IDE and editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Test files
+*_test.go
+test/
+tests/
+coverage.txt
+*.test
+
+# Air (live reload)
+.air.toml
+
+# Postman collections
+postman/
+
+# CI/CD
+.github/
+.gitlab-ci.yml
+.travis.yml
+
+# Makefile
+Makefile
+
+# Spec files
+*_spec/
+backend_spec/
+route_spec/
+system_integration/
+
+# Claude
+.claude/
