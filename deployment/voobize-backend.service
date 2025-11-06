@@ -1,0 +1,31 @@
+[Unit]
+Description=VOOBIZE Backend API
+After=network.target postgresql.service redis.service
+
+[Service]
+Type=simple
+User=www-data
+Group=www-data
+WorkingDirectory=/opt/voobize-backend
+
+# Load environment variables from .env file
+EnvironmentFile=/opt/voobize-backend/.env
+
+# Start the application
+ExecStart=/opt/voobize-backend/bin/voobize-api
+
+# Restart configuration
+Restart=always
+RestartSec=5
+
+# Logging
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=voobize-backend
+
+# Security hardening
+NoNewPrivileges=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target
