@@ -7,7 +7,7 @@ import (
 )
 
 type PushSubscription struct {
-	ID             uuid.UUID  `gorm:"type:uuid;primary_key;default:gen_random_uuid()" json:"id"`
+	ID             uuid.UUID  `gorm:"type:uuid;primary_key" json:"id"`
 	UserID         uuid.UUID  `gorm:"type:uuid;not null;uniqueIndex:idx_user_endpoint" json:"userId"`
 	User           User       `gorm:"foreignKey:UserID;constraint:OnDelete:CASCADE" json:"-"`
 	Endpoint       string     `gorm:"type:text;not null;uniqueIndex:idx_user_endpoint" json:"endpoint"`

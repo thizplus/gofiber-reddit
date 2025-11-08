@@ -21,6 +21,9 @@ type MediaRepository interface {
 	// Count
 	CountByUser(ctx context.Context, userID uuid.UUID) (int64, error)
 
+	// Update
+	Update(ctx context.Context, media *models.Media) error
+
 	// Update usage count
 	IncrementUsageCount(ctx context.Context, mediaID uuid.UUID) error
 	DecrementUsageCount(ctx context.Context, mediaID uuid.UUID) error

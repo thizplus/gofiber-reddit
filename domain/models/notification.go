@@ -7,7 +7,7 @@ import (
 )
 
 type Notification struct {
-	ID uuid.UUID `gorm:"primaryKey;type:uuid;default:gen_random_uuid()"`
+	ID uuid.UUID `gorm:"primaryKey;type:uuid"`
 
 	UserID uuid.UUID `gorm:"not null;index"` // Recipient
 	User   User      `gorm:"foreignKey:UserID"`

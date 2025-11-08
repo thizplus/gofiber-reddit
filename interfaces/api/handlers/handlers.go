@@ -1,7 +1,11 @@
 package handlers
 
 import (
+	"gofiber-template/domain/repositories"
 	"gofiber-template/domain/services"
+	"gofiber-template/infrastructure/storage"
+	chatWebsocket "gofiber-template/infrastructure/websocket"
+	websocketHandler "gofiber-template/interfaces/api/websocket"
 	"gofiber-template/pkg/config"
 )
 
@@ -22,6 +26,10 @@ type Services struct {
 	MediaService        services.MediaService
 	OAuthService        services.OAuthService
 	PushService         services.PushService
+	ConversationService services.ConversationService
+	MessageService      services.MessageService
+	BlockService        services.BlockService
+	FileUploadService   services.FileUploadService
 }
 
 // Handlers contains all HTTP handlers
@@ -43,10 +51,15 @@ type Handlers struct {
 	OAuthHandler        *OAuthHandler
 	SEOHandler          *SEOHandler
 	PushHandler         *PushHandler
+	ConversationHandler *ConversationHandler
+	MessageHandler      *MessageHandler
+	BlockHandler        *BlockHandler
+	ChatWSHandler       *websocketHandler.ChatWebSocketHandler
+	FileUploadHandler   *FileUploadHandler
 }
 
 // NewHandlers creates a new instance of Handlers with all dependencies
-func NewHandlers(services *Services, cfg *config.Config) *Handlers {
+func NewHandlers(services *Services, cfg *config.Config, chatWSHandler *websocketHandler.ChatWebSocketHandler, chatHub *chatWebsocket.ChatHub, conversationRepo repositories.ConversationRepository, mediaUploadService *storage.MediaUploadService) *Handlers {
 	return &Handlers{
 		UserHandler:         NewUserHandler(services.UserService),
 		ProfileHandler:      NewProfileHandler(services.UserService),
@@ -65,5 +78,10 @@ func NewHandlers(services *Services, cfg *config.Config) *Handlers {
 		OAuthHandler:        NewOAuthHandler(services.OAuthService, cfg),
 		SEOHandler:          NewSEOHandler(services.PostService, cfg),
 		PushHandler:         NewPushHandler(services.PushService),
+		ConversationHandler: NewConversationHandler(services.ConversationService, conversationRepo, chatHub),
+		MessageHandler:      NewMessageHandler(services.MessageService, mediaUploadService, chatHub),
+		BlockHandler:        NewBlockHandler(services.BlockService),
+		ChatWSHandler:       chatWSHandler,
+		FileUploadHandler:   NewFileUploadHandler(services.FileUploadService),
 	}
 }

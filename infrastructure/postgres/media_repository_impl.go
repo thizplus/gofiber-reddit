@@ -72,6 +72,10 @@ func (r *MediaRepositoryImpl) CountByUser(ctx context.Context, userID uuid.UUID)
 	return count, err
 }
 
+func (r *MediaRepositoryImpl) Update(ctx context.Context, media *models.Media) error {
+	return r.db.WithContext(ctx).Save(media).Error
+}
+
 func (r *MediaRepositoryImpl) IncrementUsageCount(ctx context.Context, mediaID uuid.UUID) error {
 	return r.db.WithContext(ctx).
 		Model(&models.Media{}).

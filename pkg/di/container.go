@@ -9,6 +9,8 @@ import (
 	"gofiber-template/infrastructure/postgres"
 	"gofiber-template/infrastructure/redis"
 	"gofiber-template/infrastructure/storage"
+	"gofiber-template/infrastructure/websocket"
+	"gofiber-template/infrastructure/workers"
 	"gofiber-template/interfaces/api/handlers"
 	"gofiber-template/pkg/config"
 	"gofiber-template/pkg/scheduler"
@@ -20,10 +22,15 @@ type Container struct {
 	Config *config.Config
 
 	// Infrastructure
-	DB            *gorm.DB
-	RedisClient   *redis.RedisClient
-	BunnyStorage  storage.BunnyStorage
-	EventScheduler scheduler.EventScheduler
+	DB                 *gorm.DB
+	RedisClient        *redis.RedisClient
+	RedisService       *redis.RedisService
+	BunnyStorage       storage.BunnyStorage
+	BunnyStreamService *storage.BunnyStreamService
+	MediaUploadService *storage.MediaUploadService
+	EventScheduler     scheduler.EventScheduler
+	ChatHub            *websocket.ChatHub
+	VideoEncoderWorker *workers.VideoEncoderWorker
 
 	// Repositories - Legacy
 	UserRepository repositories.UserRepository
@@ -44,6 +51,11 @@ type Container struct {
 	SearchHistoryRepository        repositories.SearchHistoryRepository
 	MediaRepository                repositories.MediaRepository
 
+	// Repositories - Chat System
+	ConversationRepository repositories.ConversationRepository
+	MessageRepository      repositories.MessageRepository
+	BlockRepository        repositories.BlockRepository
+
 	// Services - Legacy
 	UserService services.UserService
 	TaskService services.TaskService
@@ -62,6 +74,14 @@ type Container struct {
 	SearchService       services.SearchService
 	MediaService        services.MediaService
 	OAuthService        services.OAuthService
+
+	// Services - Chat System
+	ConversationService services.ConversationService
+	MessageService      services.MessageService
+	BlockService        services.BlockService
+
+	// Services - Upload
+	FileUploadService services.FileUploadService
 }
 
 func NewContainer() *Container {
@@ -86,6 +106,14 @@ func (c *Container) Initialize() error {
 	}
 
 	if err := c.initScheduler(); err != nil {
+		return err
+	}
+
+	if err := c.initChatHub(); err != nil {
+		return err
+	}
+
+	if err := c.initVideoEncoderWorker(); err != nil {
 		return err
 	}
 
@@ -142,6 +170,10 @@ func (c *Container) initInfrastructure() error {
 		log.Println("✓ Redis connected")
 	}
 
+	// Initialize RedisService
+	c.RedisService = redis.NewRedisService(c.RedisClient)
+	log.Println("✓ RedisService initialized")
+
 	// Initialize Bunny Storage
 	bunnyConfig := storage.BunnyConfig{
 		StorageZone: c.Config.Bunny.StorageZone,
@@ -151,6 +183,18 @@ func (c *Container) initInfrastructure() error {
 	}
 	c.BunnyStorage = storage.NewBunnyStorage(bunnyConfig)
 	log.Println("✓ Bunny Storage initialized")
+
+	// Initialize Bunny Stream
+	c.BunnyStreamService = storage.NewBunnyStreamService(
+		c.Config.Bunny.StreamAPIKey,
+		c.Config.Bunny.StreamLibraryID,
+		c.Config.Bunny.StreamCDNURL,
+	)
+	log.Println("✓ Bunny Stream initialized")
+
+	// Initialize MediaUploadService
+	c.MediaUploadService = storage.NewMediaUploadService(c.BunnyStorage, c.BunnyStreamService)
+	log.Println("✓ MediaUploadService initialized")
 
 	return nil
 }
@@ -175,7 +219,12 @@ func (c *Container) initRepositories() error {
 	c.SearchHistoryRepository = postgres.NewSearchHistoryRepository(c.DB)
 	c.MediaRepository = postgres.NewMediaRepository(c.DB)
 
-	log.Println("✓ Repositories initialized (15 repositories)")
+	// Chat system repositories
+	c.ConversationRepository = postgres.NewConversationRepository(c.DB)
+	c.MessageRepository = postgres.NewMessageRepository(c.DB)
+	c.BlockRepository = postgres.NewBlockRepository(c.DB)
+
+	log.Println("✓ Repositories initialized (18 repositories)")
 	return nil
 }
 
@@ -248,6 +297,34 @@ func (c *Container) initServices() error {
 	c.MediaService = serviceimpl.NewMediaService(
 		c.MediaRepository,
 		c.BunnyStorage,
+		c.BunnyStreamService,
+		c.RedisService,
+	)
+
+	// 5. Chat system services
+	c.ConversationService = serviceimpl.NewConversationService(
+		c.ConversationRepository,
+		c.MessageRepository,
+		c.BlockRepository,
+		c.UserRepository,
+		c.RedisService,
+	)
+	c.MessageService = serviceimpl.NewMessageService(
+		c.MessageRepository,
+		c.ConversationRepository,
+		c.BlockRepository,
+		c.UserRepository,
+		c.RedisService,
+	)
+	c.BlockService = serviceimpl.NewBlockService(
+		c.BlockRepository,
+		c.UserRepository,
+	)
+
+	// 6. Upload services
+	c.FileUploadService = serviceimpl.NewFileUploadService(
+		c.MediaRepository,
+		c.MediaUploadService,
 	)
 
 	// Set push service for notification service (to avoid circular dependency)
@@ -255,7 +332,7 @@ func (c *Container) initServices() error {
 		notifService.SetPushService(c.PushService)
 	}
 
-	log.Println("✓ Services initialized (15 services)")
+	log.Println("✓ Services initialized (19 services)")
 	return nil
 }
 
@@ -296,8 +373,52 @@ func (c *Container) initScheduler() error {
 	return nil
 }
 
+func (c *Container) initChatHub() error {
+	c.ChatHub = websocket.NewChatHub(
+		c.MessageService,
+		c.ConversationService,
+		c.BlockService,
+		c.RedisService,
+		c.ConversationRepository,
+		c.FollowRepository,
+		c.PushService,
+	)
+
+	// Start ChatHub in background
+	go c.ChatHub.Run()
+	log.Println("✓ ChatHub started")
+
+	return nil
+}
+
+func (c *Container) initVideoEncoderWorker() error {
+	c.VideoEncoderWorker = workers.NewVideoEncoderWorker(
+		c.RedisService,
+		c.BunnyStreamService,
+		c.MediaRepository,
+		c.NotificationService,
+	)
+
+	// Start worker in background
+	c.VideoEncoderWorker.Start()
+
+	return nil
+}
+
 func (c *Container) Cleanup() error {
 	log.Println("Starting cleanup...")
+
+	// Stop VideoEncoderWorker
+	if c.VideoEncoderWorker != nil {
+		c.VideoEncoderWorker.Stop()
+		log.Println("✓ VideoEncoderWorker stopped")
+	}
+
+	// Stop ChatHub
+	if c.ChatHub != nil {
+		c.ChatHub.Stop()
+		log.Println("✓ ChatHub stopped")
+	}
 
 	// Stop scheduler
 	if c.EventScheduler != nil {
@@ -362,5 +483,13 @@ func (c *Container) GetHandlerServices() *handlers.Services {
 		SearchService:       c.SearchService,
 		MediaService:        c.MediaService,
 		OAuthService:        c.OAuthService,
+
+		// Chat system services
+		ConversationService: c.ConversationService,
+		MessageService:      c.MessageService,
+		BlockService:        c.BlockService,
+
+		// Upload services
+		FileUploadService: c.FileUploadService,
 	}
 }

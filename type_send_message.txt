@@ -1,0 +1,269 @@
+📋 สรุปการส่ง Message แต่ละประเภท (Frontend → Backend)
+
+  🔍 ภาพรวม
+
+  Frontend จะส่งข้อความไปยัง Backend ผ่าน 2 รูปแบบ:
+
+  1. Text Message → ส่งเป็น application/json
+  2. Media Message (รูปภาพ, วิดีโอ, ไฟล์) → ส่งเป็น multipart/form-data
+
+  ---
+  1️⃣ ข้อความธรรมดา (Text Only)
+
+  API Endpoint: POST /api/v1/chat/conversations/{conversationId}/messages
+
+  Request Format: application/json
+
+  {
+    "type": "text",
+    "content": "สวัสดีครับ"
+  }
+
+  ตัวอย่างโค้ด Frontend:
+  chatService.sendTextMessage(conversationId, "สวัสดีครับ");
+
+  ---
+  2️⃣ รูปภาพเดียว (Single Image)
+
+  API Endpoint: POST /api/v1/chat/conversations/{conversationId}/messages
+
+  Request Format: multipart/form-data
+
+  FormData Fields:
+  type: "image"
+  content: "" (หรือ caption ถ้ามี)
+  media[]: [File object]
+
+  ตัวอย่าง Request Body:
+  ------WebKitFormBoundary
+  Content-Disposition: form-data; name="type"
+
+  image
+  ------WebKitFormBoundary
+  Content-Disposition: form-data; name="content"
+
+  สวยมาก! 😍
+  ------WebKitFormBoundary
+  Content-Disposition: form-data; name="media[]"; filename="photo.jpg"
+  Content-Type: image/jpeg
+
+  [binary data]
+  ------WebKitFormBoundary--
+
+  ---
+  3️⃣ รูปภาพหลายรูป (Multiple Images)
+
+  API Endpoint: POST /api/v1/chat/conversations/{conversationId}/messages
+
+  Request Format: multipart/form-data
+
+  FormData Fields:
+  type: "image"
+  content: "" (หรือ caption ถ้ามี)
+  media[]: [File object 1]
+  media[]: [File object 2]
+  media[]: [File object 3]
+  ...
+
+  ตัวอย่าง Request Body:
+  ------WebKitFormBoundary
+  Content-Disposition: form-data; name="type"
+
+  image
+  ------WebKitFormBoundary
+  Content-Disposition: form-data; name="content"
+
+  ภาพจากงานวันนี้
+  ------WebKitFormBoundary
+  Content-Disposition: form-data; name="media[]"; filename="photo1.jpg"
+  Content-Type: image/jpeg
+
+  [binary data]
+  ------WebKitFormBoundary
+  Content-Disposition: form-data; name="media[]"; filename="photo2.jpg"
+  Content-Type: image/jpeg
+
+  [binary data]
+  ------WebKitFormBoundary
+  Content-Disposition: form-data; name="media[]"; filename="photo3.jpg"
+  Content-Type: image/jpeg
+
+  [binary data]
+  ------WebKitFormBoundary--
+
+  ⚠️ Limitations:
+  - ส่งได้สูงสุด 10 รูป ต่อครั้ง
+  - แต่ละรูปขนาดไม่เกิน 10 MB
+
+  ---
+  4️⃣ วิดีโอ (Video)
+
+  API Endpoint: POST /api/v1/chat/conversations/{conversationId}/messages
+
+  Request Format: multipart/form-data
+
+  FormData Fields:
+  type: "video"
+  content: "" (หรือ caption ถ้ามี)
+  media[]: [File object]
+
+  ตัวอย่าง Request Body:
+  ------WebKitFormBoundary
+  Content-Disposition: form-data; name="type"
+
+  video
+  ------WebKitFormBoundary
+  Content-Disposition: form-data; name="content"
+
+  วิดีโอจากงาน
+  ------WebKitFormBoundary
+  Content-Disposition: form-data; name="media[]"; filename="video.mp4"
+  Content-Type: video/mp4
+
+  [binary data]
+  ------WebKitFormBoundary--
+
+  ⚠️ Limitations:
+  - ส่งได้ 1 วิดีโอ ต่อครั้งเท่านั้น
+  - ขนาดไม่เกิน 100 MB
+  - ไม่สามารถส่งวิดีโอและรูปภาพพร้อมกันได้
+
+  ---
+  5️⃣ ไฟล์ (File - PDF, DOC, ZIP, etc.)
+
+  API Endpoint: POST /api/v1/chat/conversations/{conversationId}/messages
+
+  Request Format: multipart/form-data
+
+  FormData Fields:
+  type: "file"
+  content: "" (หรือ caption ถ้ามี)
+  media[]: [File object]
+
+  ตัวอย่าง Request Body:
+  ------WebKitFormBoundary
+  Content-Disposition: form-data; name="type"
+
+  file
+  ------WebKitFormBoundary
+  Content-Disposition: form-data; name="content"
+
+  เอกสารสัญญา
+  ------WebKitFormBoundary
+  Content-Disposition: form-data; name="media[]"; filename="contract.pdf"
+  Content-Type: application/pdf
+
+  [binary data]
+  ------WebKitFormBoundary--
+
+  ⚠️ Limitations:
+  - ส่งได้สูงสุด 5 ไฟล์ ต่อครั้ง
+  - แต่ละไฟล์ขนาดไม่เกิน 50 MB
+  - รองรับไฟล์: .pdf, .doc, .docx, .xls, .xlsx, .zip, .rar, .txt
+
+  ---
+  6️⃣ รูปภาพ/วิดีโอ/ไฟล์ + Caption
+
+  API Endpoint: POST /api/v1/chat/conversations/{conversationId}/messages
+
+  Request Format: multipart/form-data
+
+  กรณีมี Caption:
+  - content field จะมีค่าเป็น caption text
+  - ไฟล์ก็ส่งแบบปกติผ่าน media[]
+
+  ตัวอย่าง:
+  type: "image"
+  content: "ภาพสวยๆ จากทะเล 🌊"
+  media[]: [photo1.jpg]
+  media[]: [photo2.jpg]
+
+  กรณีไม่มี Caption:
+  - content field จะเป็น empty string ""
+  - หรือไม่ส่ง field นี้ไปเลย
+
+  ---
+  🔄 Flow การส่งข้อความ (Frontend)
+
+  // 1. User แนบไฟล์ผ่าน ChatInput
+  <ChatInput onSendMessage={handleSendMessage} />
+
+  // 2. handleSendMessage สร้าง FormData
+  const formData = new FormData();
+  formData.append("type", files[0].type); // "image" | "video" | "file"
+  if (content) formData.append("content", content);
+  files.forEach(f => formData.append("media[]", f.file));
+
+  // 3. ส่งผ่าน chatStore.sendMessage()
+  await sendMessage(conversationId, formData);
+
+  // 4. chatStore ตรวจสอบประเภทและเรียก API ที่เหมาะสม
+  if (type === "text" && !hasFiles) {
+    // ส่งเป็น JSON
+    await chatService.sendTextMessage(conversationId, content);
+  } else {
+    // ส่งเป็น multipart/form-data
+    await chatService.sendMediaMessage(conversationId, formData);
+  }
+
+  ---
+  ⚠️ ปัญหาที่พบ (ตามที่คุณแจ้ง)
+
+  ปัญหา: พอแนบรูปภาพไปด้วย มันส่งไปแค่ text
+
+  สาเหตุที่เป็นไปได้:
+
+  1. Backend ไม่รับ multipart/form-data หรือไม่ได้ parse FormData
+    - ตรวจสอบว่า backend endpoint รองรับ multipart/form-data หรือไม่
+    - ตรวจสอบว่า middleware ที่ parse file upload ทำงานหรือไม่
+  2. Backend ไม่ได้อ่าน media[] field
+    - Frontend ส่ง field ชื่อ media[] (มี brackets)
+    - Backend ต้องรับเป็น array
+  3. Backend มองว่าทุก request เป็น text
+    - ตรวจสอบว่า backend อ่าน type field ถูกต้องหรือไม่
+    - ตรวจสอบว่า backend แยก logic ระหว่าง text กับ media หรือไม่
+
+  ---
+  📝 ข้อมูลที่ Backend ควรได้รับ
+
+  สำหรับ Text Message:
+  {
+    "type": "text",
+    "content": "ข้อความ"
+  }
+
+  สำหรับ Media Message:
+  Content-Type: multipart/form-data; boundary=----WebKitFormBoundary...
+
+  type: "image" | "video" | "file"
+  content: "caption (optional)"
+  media[]: File (binary)
+  media[]: File (binary) // สำหรับหลายไฟล์
+  ...
+
+  ---
+  🧪 ตัวอย่าง cURL สำหรับทดสอบ
+
+  ส่งรูปภาพเดียว:
+  curl -X POST "http://localhost:8080/api/v1/chat/conversations/{conversationId}/messages" \
+    -H "Authorization: Bearer YOUR_TOKEN" \
+    -F "type=image" \
+    -F "content=ภาพสวย" \
+    -F "media[]=@/path/to/photo.jpg"
+
+  ส่งหลายรูป:
+  curl -X POST "http://localhost:8080/api/v1/chat/conversations/{conversationId}/messages" \
+    -H "Authorization: Bearer YOUR_TOKEN" \
+    -F "type=image" \
+    -F "content=ภาพจากงาน" \
+    -F "media[]=@/path/to/photo1.jpg" \
+    -F "media[]=@/path/to/photo2.jpg" \
+    -F "media[]=@/path/to/photo3.jpg"
+
+  ---
+  สรุป: Frontend ส่งข้อมูลถูกต้องตามที่ออกแบบไว้แล้วครับ ปัญหาน่าจะอยู่ที่ฝั่ง Backend ไม่ได้จัดการ multipart/form-data หรือไม่ได้อ่าน media[] field
+
+  ให้ทีม Backend ตรวจสอบ:
+  1. Middleware ที่ handle file upload
+  2. การ parse media[] field จาก FormData
+  3. การแยก logic ระหว่าง text message กับ media message ตาม type field

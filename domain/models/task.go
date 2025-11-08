@@ -6,7 +6,7 @@ import (
 )
 
 type Task struct {
-	ID          uuid.UUID  `gorm:"primaryKey;type:uuid;default:gen_random_uuid()"`
+	ID          uuid.UUID  `gorm:"primaryKey;type:uuid"`
 	Title       string     `gorm:"not null"`
 	Description string
 	Status      string     `gorm:"default:'pending'"`

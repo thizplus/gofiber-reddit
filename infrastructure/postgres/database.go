@@ -55,6 +55,11 @@ func Migrate(db *gorm.DB) error {
 		// Search
 		&models.SearchHistory{},
 
+		// Chat System (Order matters: Conversation first, then Message, then Block)
+		&models.Conversation{},
+		&models.Block{},
+		&models.Message{},
+
 		// Legacy models (keep for now, can remove later)
 		&models.Task{},
 		&models.File{},

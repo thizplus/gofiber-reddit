@@ -44,10 +44,16 @@ type JWTConfig struct {
 }
 
 type BunnyConfig struct {
+	// Bunny Storage (for images and files)
 	StorageZone string
 	AccessKey   string
 	BaseURL     string
 	CDNUrl      string
+
+	// Bunny Stream (for videos)
+	StreamAPIKey    string
+	StreamLibraryID string
+	StreamCDNURL    string
 }
 
 type OAuthConfig struct {
@@ -98,10 +104,16 @@ func LoadConfig() (*Config, error) {
 			Secret: getEnv("JWT_SECRET", "your-secret-key"),
 		},
 		Bunny: BunnyConfig{
+			// Storage config
 			StorageZone: getEnv("BUNNY_STORAGE_ZONE", ""),
 			AccessKey:   getEnv("BUNNY_ACCESS_KEY", ""),
 			BaseURL:     getEnv("BUNNY_BASE_URL", "https://storage.bunnycdn.com"),
 			CDNUrl:      getEnv("BUNNY_CDN_URL", ""),
+
+			// Stream config
+			StreamAPIKey:    getEnv("BUNNY_STREAM_API_KEY", ""),
+			StreamLibraryID: getEnv("BUNNY_STREAM_LIBRARY_ID", "533535"),
+			StreamCDNURL:    getEnv("BUNNY_STREAM_CDN_URL", "https://vz-b1631ae0-4c8.b-cdn.net"),
 		},
 		OAuth: OAuthConfig{
 			Google: GoogleOAuthConfig{

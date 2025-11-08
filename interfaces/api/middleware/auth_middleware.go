@@ -120,3 +120,57 @@ func Optional() fiber.Handler {
 		return c.Next()
 	}
 }
+
+// WebSocketProtected middleware validates JWT tokens from query parameter or header
+// This is specifically for WebSocket connections which can't set custom headers
+func WebSocketProtected() fiber.Handler {
+	jwtSecret := os.Getenv("JWT_SECRET")
+	if jwtSecret == "" {
+		log.Fatal("JWT_SECRET environment variable is required")
+	}
+
+	return func(c *fiber.Ctx) error {
+		var token string
+
+		// Try to get token from query parameter first (for WebSocket)
+		token = c.Query("token")
+
+		// If not in query, try Authorization header
+		if token == "" {
+			authHeader := c.Get("Authorization")
+			if authHeader != "" {
+				token = utils.ExtractTokenFromHeader(authHeader)
+			}
+		}
+
+		// If still no token, reject
+		if token == "" {
+			log.Printf("❌ WebSocket auth failed: No token provided")
+			return utils.UnauthorizedResponse(c, "Missing authentication token")
+		}
+
+		// Validate token and get user context
+		userCtx, err := utils.ValidateTokenStringToUUID(token, jwtSecret)
+		if err != nil {
+			log.Printf("❌ WebSocket token validation failed: %v", err)
+			switch err {
+			case utils.ErrExpiredToken:
+				return utils.UnauthorizedResponse(c, "Token has expired")
+			case utils.ErrInvalidToken:
+				return utils.UnauthorizedResponse(c, "Invalid token")
+			case utils.ErrMissingToken:
+				return utils.UnauthorizedResponse(c, "Missing token")
+			default:
+				return utils.UnauthorizedResponse(c, "Token validation failed")
+			}
+		}
+
+		log.Printf("✅ WebSocket: Token validated from query param for user: %s (%s)", userCtx.Email, userCtx.ID)
+
+		// Set user context in fiber locals
+		c.Locals("user", userCtx)
+		c.Locals("userID", userCtx.ID)
+
+		return c.Next()
+	}
+}

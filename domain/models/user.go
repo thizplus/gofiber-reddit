@@ -7,7 +7,7 @@ import (
 
 type User struct {
 	// Core Fields
-	ID       uuid.UUID `gorm:"primaryKey;type:uuid;default:gen_random_uuid()"`
+	ID       uuid.UUID `gorm:"primaryKey;type:uuid"`
 	Email    string    `gorm:"uniqueIndex;not null"`
 	Username string    `gorm:"uniqueIndex;not null"`
 	Password string    // Optional for OAuth users

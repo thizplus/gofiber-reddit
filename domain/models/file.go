@@ -6,7 +6,7 @@ import (
 )
 
 type File struct {
-	ID        uuid.UUID `gorm:"primaryKey;type:uuid;default:gen_random_uuid()"`
+	ID        uuid.UUID `gorm:"primaryKey;type:uuid"`
 	FileName  string    `gorm:"not null"`
 	FileSize  int64
 	MimeType  string

@@ -7,7 +7,7 @@ import (
 )
 
 type Tag struct {
-	ID        uuid.UUID `gorm:"primaryKey;type:uuid;default:gen_random_uuid()"`
+	ID        uuid.UUID `gorm:"primaryKey;type:uuid"`
 	Name      string    `gorm:"uniqueIndex;not null;type:varchar(50)"`
 	PostCount int       `gorm:"default:0;index"`
 

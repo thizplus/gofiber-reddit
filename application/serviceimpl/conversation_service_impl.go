@@ -1,0 +1,231 @@
+package serviceimpl
+
+import (
+	"context"
+	"errors"
+	"time"
+
+	"github.com/google/uuid"
+	"gofiber-template/domain/dto"
+	"gofiber-template/domain/repositories"
+	"gofiber-template/domain/services"
+	redisInfra "gofiber-template/infrastructure/redis"
+	"gofiber-template/pkg/utils"
+)
+
+type ConversationServiceImpl struct {
+	conversationRepo repositories.ConversationRepository
+	messageRepo      repositories.MessageRepository
+	blockRepo        repositories.BlockRepository
+	userRepo         repositories.UserRepository
+	redisService     *redisInfra.RedisService
+}
+
+func NewConversationService(
+	conversationRepo repositories.ConversationRepository,
+	messageRepo repositories.MessageRepository,
+	blockRepo repositories.BlockRepository,
+	userRepo repositories.UserRepository,
+	redisService *redisInfra.RedisService,
+) services.ConversationService {
+	return &ConversationServiceImpl{
+		conversationRepo: conversationRepo,
+		messageRepo:      messageRepo,
+		blockRepo:        blockRepo,
+		userRepo:         userRepo,
+		redisService:     redisService,
+	}
+}
+
+func (s *ConversationServiceImpl) GetOrCreateConversation(ctx context.Context, userID uuid.UUID, otherUsername string) (*dto.ConversationResponse, error) {
+	// Get other user by username
+	otherUser, err := s.userRepo.GetByUsername(ctx, otherUsername)
+	if err != nil {
+		return nil, errors.New("user not found")
+	}
+
+	// Can't chat with yourself
+	if userID == otherUser.ID {
+		return nil, errors.New("cannot chat with yourself")
+	}
+
+	// Check block status
+	blocked, blockedBy, err := s.blockRepo.GetBlockStatus(ctx, userID, otherUser.ID)
+	if err != nil {
+		return nil, err
+	}
+
+	if blocked || blockedBy {
+		return nil, errors.New("cannot start conversation: user is blocked")
+	}
+
+	// Get or create conversation
+	conversation, _, err := s.conversationRepo.GetOrCreateByUsers(ctx, userID, otherUser.ID)
+	if err != nil {
+		return nil, err
+	}
+
+	// Convert to DTO
+	resp := dto.ConversationToConversationResponse(conversation, userID)
+
+	// Load last message if exists
+	if conversation.LastMessageID != nil {
+		lastMsg, err := s.messageRepo.GetByID(ctx, *conversation.LastMessageID)
+		if err == nil {
+			resp.LastMessage = dto.MessageToMessageResponse(lastMsg)
+		}
+	}
+
+	return resp, nil
+}
+
+func (s *ConversationServiceImpl) GetConversation(ctx context.Context, conversationID uuid.UUID, userID uuid.UUID) (*dto.ConversationResponse, error) {
+	conversation, err := s.conversationRepo.GetByID(ctx, conversationID)
+	if err != nil {
+		return nil, errors.New("conversation not found")
+	}
+
+	// Check if user is participant
+	if conversation.User1ID != userID && conversation.User2ID != userID {
+		return nil, errors.New("access denied: not a participant")
+	}
+
+	// Convert to DTO
+	resp := dto.ConversationToConversationResponse(conversation, userID)
+
+	// Load last message if exists
+	if conversation.LastMessageID != nil {
+		lastMsg, err := s.messageRepo.GetByID(ctx, *conversation.LastMessageID)
+		if err == nil {
+			resp.LastMessage = dto.MessageToMessageResponse(lastMsg)
+		}
+	}
+
+	return resp, nil
+}
+
+func (s *ConversationServiceImpl) ListConversations(ctx context.Context, userID uuid.UUID, cursorStr *string, limit int) (*dto.ConversationListResponse, error) {
+	// Decode cursor if provided
+	var cursor *time.Time
+	if cursorStr != nil && *cursorStr != "" {
+		decoded, err := utils.DecodeCursor(*cursorStr)
+		if err != nil {
+			return nil, errors.New("invalid cursor")
+		}
+		cursor = decoded
+	}
+
+	// Set default limit
+	if limit <= 0 || limit > 50 {
+		limit = 20
+	}
+
+	// Fetch conversations (limit + 1 to check for more)
+	conversations, err := s.conversationRepo.ListByUser(ctx, userID, cursor, limit+1)
+	if err != nil {
+		return nil, err
+	}
+
+	// Check if there are more results
+	hasMore := len(conversations) > limit
+	if hasMore {
+		conversations = conversations[:limit]
+	}
+
+	// Convert to DTOs
+	conversationResponses := make([]dto.ConversationResponse, len(conversations))
+	for i, conv := range conversations {
+		resp := dto.ConversationToConversationResponse(conv, userID)
+
+		// Fetch last message from database (always use DB for complete data)
+		if conv.LastMessageID != nil {
+			lastMsg, err := s.messageRepo.GetByID(ctx, *conv.LastMessageID)
+			if err == nil {
+				resp.LastMessage = dto.MessageToMessageResponse(lastMsg)
+			}
+		}
+
+		// Get unread count from Redis
+		unreadCount, _ := s.redisService.GetConversationUnreadCount(ctx, userID, conv.ID)
+		resp.UnreadCount = unreadCount
+
+		conversationResponses[i] = *resp
+	}
+
+	// Generate next cursor
+	var nextCursor *string
+	if hasMore && len(conversations) > 0 {
+		lastConv := conversations[len(conversations)-1]
+		encoded, err := utils.EncodeCursor(lastConv.LastMessageAt)
+		if err == nil {
+			nextCursor = &encoded
+		}
+	}
+
+	return &dto.ConversationListResponse{
+		Conversations: conversationResponses,
+		NextCursor:    nextCursor,
+		HasMore:       hasMore,
+	}, nil
+}
+
+func (s *ConversationServiceImpl) GetUnreadCount(ctx context.Context, userID uuid.UUID) (*dto.UnreadCountResponse, error) {
+	// Try Redis first
+	count, err := s.redisService.GetTotalUnreadCount(ctx, userID)
+	if err == nil && count >= 0 {
+		return &dto.UnreadCountResponse{
+			TotalUnread: count,
+		}, nil
+	}
+
+	// Fallback to database if Redis empty/error
+	dbCount, err := s.conversationRepo.GetTotalUnreadCount(ctx, userID)
+	if err != nil {
+		return nil, err
+	}
+
+	// Note: If Redis is empty, we rely on database counts
+	// Redis will be populated on next message send or mark as read
+
+	return &dto.UnreadCountResponse{
+		TotalUnread: dbCount,
+	}, nil
+}
+
+func (s *ConversationServiceImpl) MarkAsRead(ctx context.Context, conversationID uuid.UUID, userID uuid.UUID) error {
+	// Verify user is participant
+	conversation, err := s.conversationRepo.GetByID(ctx, conversationID)
+	if err != nil {
+		return errors.New("conversation not found")
+	}
+
+	if conversation.User1ID != userID && conversation.User2ID != userID {
+		return errors.New("access denied: not a participant")
+	}
+
+	// Get current unread count from Redis before marking
+	unreadCount, _ := s.redisService.GetConversationUnreadCount(ctx, userID, conversationID)
+
+	// Mark all messages as read
+	if err := s.messageRepo.MarkAllAsRead(ctx, conversationID, userID); err != nil {
+		return err
+	}
+
+	// Reset unread count in conversation
+	if err := s.conversationRepo.ResetUnreadCount(ctx, conversationID, userID); err != nil {
+		return err
+	}
+
+	// Update Redis
+	if unreadCount > 0 {
+		// Decrement total unread
+		_ = s.redisService.DecrementTotalUnread(ctx, userID, unreadCount)
+		// Reset conversation unread (returns count but we ignore it)
+		_, _ = s.redisService.ResetConversationUnread(ctx, userID, conversationID)
+	}
+
+	return nil
+}
+
+// Ensure interface compliance
+var _ services.ConversationService = (*ConversationServiceImpl)(nil)

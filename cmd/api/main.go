@@ -9,6 +9,7 @@ import (
 	"gofiber-template/interfaces/api/handlers"
 	"gofiber-template/interfaces/api/middleware"
 	"gofiber-template/interfaces/api/routes"
+	websocketHandler "gofiber-template/interfaces/api/websocket"
 	"gofiber-template/pkg/di"
 )
 
@@ -37,7 +38,11 @@ func main() {
 
 	// Create handlers from services
 	services := container.GetHandlerServices()
-	h := handlers.NewHandlers(services, container.GetConfig())
+
+	// Create ChatWebSocketHandler
+	chatWSHandler := websocketHandler.NewChatWebSocketHandler(container.ChatHub)
+
+	h := handlers.NewHandlers(services, container.GetConfig(), chatWSHandler, container.ChatHub, container.ConversationRepository, container.MediaUploadService)
 
 	// Setup routes
 	routes.SetupRoutes(app, h)
@@ -49,6 +54,7 @@ func main() {
 	log.Printf("📚 Health check: http://localhost:%s/health", port)
 	log.Printf("📖 API docs: http://localhost:%s/api/v1", port)
 	log.Printf("🔌 WebSocket: ws://localhost:%s/ws", port)
+	log.Printf("💬 Chat WebSocket: ws://localhost:%s/chat/ws", port)
 
 	log.Fatal(app.Listen(":" + port))
 }

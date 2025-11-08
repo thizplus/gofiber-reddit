@@ -6,7 +6,7 @@ import (
 )
 
 type Job struct {
-	ID        uuid.UUID  `gorm:"primaryKey;type:uuid;default:gen_random_uuid()"`
+	ID        uuid.UUID  `gorm:"primaryKey;type:uuid"`
 	Name      string     `gorm:"not null"`
 	CronExpr  string     `gorm:"not null"`
 	Payload   string     `gorm:"type:jsonb"`

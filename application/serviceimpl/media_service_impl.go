@@ -14,12 +14,15 @@ import (
 	"gofiber-template/domain/models"
 	"gofiber-template/domain/repositories"
 	"gofiber-template/domain/services"
+	"gofiber-template/infrastructure/redis"
 	"gofiber-template/infrastructure/storage"
 )
 
 type MediaServiceImpl struct {
 	mediaRepo     repositories.MediaRepository
 	bunnyStorage  storage.BunnyStorage
+	bunnyStream   *storage.BunnyStreamService
+	redisService  *redis.RedisService
 	allowedImages []string
 	allowedVideos []string
 	maxImageSize  int64 // bytes
@@ -29,14 +32,18 @@ type MediaServiceImpl struct {
 func NewMediaService(
 	mediaRepo repositories.MediaRepository,
 	bunnyStorage storage.BunnyStorage,
+	bunnyStream *storage.BunnyStreamService,
+	redisService *redis.RedisService,
 ) services.MediaService {
 	return &MediaServiceImpl{
-		mediaRepo:    mediaRepo,
-		bunnyStorage: bunnyStorage,
+		mediaRepo:     mediaRepo,
+		bunnyStorage:  bunnyStorage,
+		bunnyStream:   bunnyStream,
+		redisService:  redisService,
 		allowedImages: []string{".jpg", ".jpeg", ".png", ".gif", ".webp"},
 		allowedVideos: []string{".mp4", ".mov", ".avi", ".webm"},
-		maxImageSize: 10 * 1024 * 1024,  // 10MB
-		maxVideoSize: 300 * 1024 * 1024, // 300MB
+		maxImageSize:  10 * 1024 * 1024,  // 10MB
+		maxVideoSize:  300 * 1024 * 1024, // 300MB
 	}
 }
 
@@ -74,6 +81,7 @@ func (s *MediaServiceImpl) UploadImage(ctx context.Context, userID uuid.UUID, fi
 		UserID:    userID,
 		Type:      "image",
 		FileName:  file.Filename,
+		Extension: strings.TrimPrefix(ext, "."),
 		MimeType:  file.Header.Get("Content-Type"),
 		Size:      file.Size,
 		URL:       cdnURL,
@@ -112,35 +120,47 @@ func (s *MediaServiceImpl) UploadVideo(ctx context.Context, userID uuid.UUID, fi
 	}
 	defer src.Close()
 
-	// Generate unique filename
-	filename := fmt.Sprintf("videos/%s/%s%s", userID.String(), uuid.New().String(), ext)
-
-	// Upload to Bunny Storage
-	cdnURL, err := s.bunnyStorage.UploadFile(src, filename, file.Header.Get("Content-Type"))
+	// Upload to Bunny Stream
+	createResp, err := s.bunnyStream.CreateVideo(src, file.Filename)
 	if err != nil {
-		return nil, fmt.Errorf("failed to upload to Bunny Storage: %w", err)
+		return nil, fmt.Errorf("failed to upload to Bunny Stream: %w", err)
 	}
 
-	// Create media record
+	// Generate media ID
+	mediaID := uuid.New()
+
+	// Create media record with pending encoding status
 	media := &models.Media{
-		ID:        uuid.New(),
-		UserID:    userID,
-		Type:      "video",
-		FileName:  file.Filename,
-		MimeType:  file.Header.Get("Content-Type"),
-		Size:      file.Size,
-		URL:       cdnURL,
-		CreatedAt: time.Now(),
+		ID:               mediaID,
+		UserID:           userID,
+		Type:             "video",
+		FileName:         file.Filename,
+		Extension:        strings.TrimPrefix(ext, "."),
+		MimeType:         file.Header.Get("Content-Type"),
+		Size:             file.Size,
+		URL:              s.bunnyStream.GetHLSURL(createResp.VideoID), // HLS URL (will work after encoding)
+		Thumbnail:        s.bunnyStream.GetThumbnailURL(createResp.VideoID),
+		VideoID:          createResp.VideoID,
+		EncodingStatus:   "pending",
+		EncodingProgress: 0,
+		CreatedAt:        time.Now(),
 	}
 
-	// TODO: Extract video metadata (duration, dimensions) using ffmpeg or similar
-	// For now, leave Duration/Width/Height as default values
-
+	// Save to database
 	err = s.mediaRepo.Create(ctx, media)
 	if err != nil {
-		// Cleanup uploaded file
-		_ = s.bunnyStorage.DeleteFile(filename)
+		// TODO: Consider deleting from Bunny Stream on DB failure
 		return nil, err
+	}
+
+	// Enqueue for encoding (async processing)
+	if s.redisService != nil {
+		err = s.redisService.EnqueueVideoEncoding(ctx, mediaID, createResp.VideoID)
+		if err != nil {
+			// Log error but don't fail the upload
+			// Worker will still process based on database status
+			fmt.Printf("Warning: Failed to enqueue video encoding: %v\n", err)
+		}
 	}
 
 	return dto.MediaToMediaUploadResponse(media), nil

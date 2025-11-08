@@ -7,7 +7,7 @@ import (
 )
 
 type Comment struct {
-	ID     uuid.UUID `gorm:"primaryKey;type:uuid;default:gen_random_uuid()"`
+	ID     uuid.UUID `gorm:"primaryKey;type:uuid"`
 	PostID uuid.UUID `gorm:"not null;index"`
 	Post   Post      `gorm:"foreignKey:PostID"`
 

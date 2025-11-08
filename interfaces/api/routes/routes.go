@@ -32,6 +32,12 @@ func SetupRoutes(app *fiber.App, h *handlers.Handlers) {
 	SetupMediaRoutes(api, h)
 	SetupPushRoutes(api, h)
 
+	// Setup chat routes
+	SetupChatRoutes(api, h)
+
+	// Setup upload routes
+	SetupUploadRoutes(api, h)
+
 	// Setup legacy routes (can be removed if not needed)
 	SetupTaskRoutes(api, h)
 	SetupFileRoutes(api, h)
@@ -39,4 +45,5 @@ func SetupRoutes(app *fiber.App, h *handlers.Handlers) {
 
 	// Setup WebSocket routes (needs app, not api group)
 	SetupWebSocketRoutes(app)
+	SetupChatWebSocketRoutes(app, h)
 }

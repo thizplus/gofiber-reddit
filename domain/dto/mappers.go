@@ -1,6 +1,8 @@
 package dto
 
 import (
+	"encoding/json"
+
 	"github.com/google/uuid"
 	"gofiber-template/domain/models"
 )
@@ -358,5 +360,85 @@ func SearchHistoryToResponse(history *models.SearchHistory) *SearchHistoryRespon
 		Query:      history.Query,
 		Type:       history.Type,
 		SearchedAt: history.SearchedAt,
+	}
+}
+
+// ============================================================================
+// Chat mappers
+// ============================================================================
+
+// MessageToMessageResponse converts Message model to MessageResponse DTO
+func MessageToMessageResponse(message *models.Message) *MessageResponse {
+	if message == nil {
+		return nil
+	}
+
+	resp := &MessageResponse{
+		ID:             message.ID,
+		ConversationID: message.ConversationID,
+		Sender:         *UserToUserResponse(&message.Sender),
+		Receiver:       *UserToUserResponse(&message.Receiver),
+		Type:           string(message.Type),
+		Content:        message.Content,
+		IsRead:         message.IsRead,
+		ReadAt:         message.ReadAt,
+		CreatedAt:      message.CreatedAt,
+		UpdatedAt:      message.UpdatedAt,
+
+		// Helper fields
+		SenderId:   message.SenderID,
+	}
+
+	// Unmarshal Media JSONB to []MessageMedia
+	if message.Media != nil && len(message.Media) > 0 {
+		var mediaList []MessageMedia
+		if err := json.Unmarshal(message.Media, &mediaList); err == nil {
+			resp.Media = mediaList
+		}
+	}
+
+	return resp
+}
+
+// ConversationToConversationResponse converts Conversation model to ConversationResponse DTO
+// currentUserID is needed to determine who the "other user" is and which unread count to show
+func ConversationToConversationResponse(conversation *models.Conversation, currentUserID uuid.UUID) *ConversationResponse {
+	if conversation == nil {
+		return nil
+	}
+
+	// Determine who is the "other user" and get their unread count
+	var otherUser models.User
+	var unreadCount int
+
+	if conversation.User1ID == currentUserID {
+		otherUser = conversation.User2
+		unreadCount = conversation.User1UnreadCount
+	} else {
+		otherUser = conversation.User1
+		unreadCount = conversation.User2UnreadCount
+	}
+
+	resp := &ConversationResponse{
+		ID:            conversation.ID,
+		OtherUser:     *UserToUserResponse(&otherUser),
+		LastMessageAt: conversation.LastMessageAt,
+		UnreadCount:   unreadCount,
+		CreatedAt:     conversation.CreatedAt,
+		UpdatedAt:     conversation.UpdatedAt,
+	}
+
+	return resp
+}
+
+// BlockToBlockedUserResponse converts Block model to BlockedUserResponse DTO
+func BlockToBlockedUserResponse(block *models.Block) *BlockedUserResponse {
+	if block == nil {
+		return nil
+	}
+
+	return &BlockedUserResponse{
+		User:      *UserToUserResponse(&block.Blocked),
+		BlockedAt: block.CreatedAt,
 	}
 }
