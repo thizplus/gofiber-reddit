@@ -144,3 +144,28 @@ func (h *ConversationHandler) sendReadNotification(c *fiber.Ctx, conversationID 
 
 	log.Printf("📤 Read notification sent to sender: %s (conversation: %s, read by: %s)", senderID, conversationID, readerID)
 }
+
+// SearchUsersForChat searches users for starting a new chat
+// GET /chat/search-users?q=username&limit=20
+func (h *ConversationHandler) SearchUsersForChat(c *fiber.Ctx) error {
+	userID := c.Locals("userID").(uuid.UUID)
+
+	// Get query params
+	query := c.Query("q", "")
+	limit := 20
+	if limitStr := c.Query("limit"); limitStr != "" {
+		if parsedLimit, err := strconv.Atoi(limitStr); err == nil {
+			if parsedLimit > 0 && parsedLimit <= 50 {
+				limit = parsedLimit
+			}
+		}
+	}
+
+	// Search users
+	results, err := h.conversationService.SearchUsersForChat(c.Context(), userID, query, limit)
+	if err != nil {
+		return utils.ErrorResponse(c, fiber.StatusInternalServerError, "Failed to search users", err)
+	}
+
+	return utils.SuccessResponse(c, "Users retrieved successfully", results)
+}

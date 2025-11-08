@@ -307,6 +307,7 @@ func (c *Container) initServices() error {
 		c.MessageRepository,
 		c.BlockRepository,
 		c.UserRepository,
+		c.FollowRepository,
 		c.RedisService,
 	)
 	c.MessageService = serviceimpl.NewMessageService(

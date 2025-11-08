@@ -7,6 +7,7 @@ import (
 
 	"github.com/google/uuid"
 	"gofiber-template/domain/dto"
+	"gofiber-template/domain/models"
 	"gofiber-template/domain/repositories"
 	"gofiber-template/domain/services"
 	redisInfra "gofiber-template/infrastructure/redis"
@@ -18,6 +19,7 @@ type ConversationServiceImpl struct {
 	messageRepo      repositories.MessageRepository
 	blockRepo        repositories.BlockRepository
 	userRepo         repositories.UserRepository
+	followRepo       repositories.FollowRepository
 	redisService     *redisInfra.RedisService
 }
 
@@ -26,6 +28,7 @@ func NewConversationService(
 	messageRepo repositories.MessageRepository,
 	blockRepo repositories.BlockRepository,
 	userRepo repositories.UserRepository,
+	followRepo repositories.FollowRepository,
 	redisService *redisInfra.RedisService,
 ) services.ConversationService {
 	return &ConversationServiceImpl{
@@ -33,6 +36,7 @@ func NewConversationService(
 		messageRepo:      messageRepo,
 		blockRepo:        blockRepo,
 		userRepo:         userRepo,
+		followRepo:       followRepo,
 		redisService:     redisService,
 	}
 }
@@ -225,6 +229,97 @@ func (s *ConversationServiceImpl) MarkAsRead(ctx context.Context, conversationID
 	}
 
 	return nil
+}
+
+func (s *ConversationServiceImpl) SearchUsersForChat(ctx context.Context, userID uuid.UUID, query string, limit int) (*dto.ChatUserSearchResponse, error) {
+	// Set default limit
+	if limit <= 0 || limit > 50 {
+		limit = 20
+	}
+
+	// If query is empty, return suggested users only
+	var searchResults []*models.User
+	var err error
+
+	if query != "" {
+		// Search users by query
+		searchResults, err = s.userRepo.SearchForChat(ctx, userID, query, limit)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	// Get suggested users (followers/following)
+	suggestedUsers, err := s.userRepo.GetSuggestedForChat(ctx, userID, 10)
+	if err != nil {
+		// Non-critical, continue without suggestions
+		suggestedUsers = []*models.User{}
+	}
+
+	// Combine all user IDs for batch follow status check
+	allUserIDs := make([]uuid.UUID, 0, len(searchResults)+len(suggestedUsers))
+	for _, user := range searchResults {
+		allUserIDs = append(allUserIDs, user.ID)
+	}
+	for _, user := range suggestedUsers {
+		allUserIDs = append(allUserIDs, user.ID)
+	}
+
+	// Batch check follow status
+	followStatusMap := make(map[uuid.UUID]bool)
+	if len(allUserIDs) > 0 {
+		followStatusMap, err = s.followRepo.GetFollowStatus(ctx, userID, allUserIDs)
+		if err != nil {
+			// Non-critical, continue without follow status
+			followStatusMap = make(map[uuid.UUID]bool)
+		}
+	}
+
+	// Convert to DTOs
+	users := make([]dto.ChatUserSearchResult, len(searchResults))
+	for i, user := range searchResults {
+		isOnline, lastActiveTime, _ := s.redisService.IsUserOnline(ctx, user.ID)
+		var lastActive *time.Time
+		if !lastActiveTime.IsZero() {
+			lastActive = &lastActiveTime
+		}
+
+		users[i] = dto.ChatUserSearchResult{
+			ID:          user.ID,
+			Username:    user.Username,
+			DisplayName: user.DisplayName,
+			Avatar:      user.Avatar,
+			Bio:         user.Bio,
+			IsFollowing: followStatusMap[user.ID],
+			IsOnline:    isOnline,
+			LastActive:  lastActive,
+		}
+	}
+
+	suggested := make([]dto.ChatUserSearchResult, len(suggestedUsers))
+	for i, user := range suggestedUsers {
+		isOnline, lastActiveTime, _ := s.redisService.IsUserOnline(ctx, user.ID)
+		var lastActive *time.Time
+		if !lastActiveTime.IsZero() {
+			lastActive = &lastActiveTime
+		}
+
+		suggested[i] = dto.ChatUserSearchResult{
+			ID:          user.ID,
+			Username:    user.Username,
+			DisplayName: user.DisplayName,
+			Avatar:      user.Avatar,
+			Bio:         user.Bio,
+			IsFollowing: followStatusMap[user.ID],
+			IsOnline:    isOnline,
+			LastActive:  lastActive,
+		}
+	}
+
+	return &dto.ChatUserSearchResponse{
+		Users:     users,
+		Suggested: suggested,
+	}, nil
 }
 
 // Ensure interface compliance

@@ -19,4 +19,7 @@ type ConversationService interface {
 
 	// Mark as read
 	MarkAsRead(ctx context.Context, conversationID uuid.UUID, userID uuid.UUID) error
+
+	// Search users for chat
+	SearchUsersForChat(ctx context.Context, userID uuid.UUID, query string, limit int) (*dto.ChatUserSearchResponse, error)
 }

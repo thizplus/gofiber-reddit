@@ -10,6 +10,9 @@ func SetupChatRoutes(api fiber.Router, h *handlers.Handlers) {
 	// All chat routes require authentication
 	chat := api.Group("/chat", middleware.Protected())
 
+	// Search users for chat
+	chat.Get("/search-users", h.ConversationHandler.SearchUsersForChat)
+
 	// Conversation routes (Nested URLs)
 	conversations := chat.Group("/conversations")
 	conversations.Get("/with/:username", h.ConversationHandler.GetOrCreateConversation)

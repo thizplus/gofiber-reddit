@@ -138,3 +138,25 @@ type BlockedUsersResponse struct {
 	BlockedUsers []BlockedUserResponse `json:"blockedUsers"`
 	Meta         PaginationMeta        `json:"meta"`
 }
+
+// ============================================================================
+// Search Users for Chat DTOs
+// ============================================================================
+
+// ChatUserSearchResult - User info for chat search
+type ChatUserSearchResult struct {
+	ID          uuid.UUID  `json:"id"`
+	Username    string     `json:"username"`
+	DisplayName string     `json:"displayName"`
+	Avatar      string     `json:"avatar,omitempty"`
+	Bio         string     `json:"bio,omitempty"`
+	IsFollowing bool       `json:"isFollowing"`
+	IsOnline    bool       `json:"isOnline"`
+	LastActive  *time.Time `json:"lastActive,omitempty"`
+}
+
+// ChatUserSearchResponse - Response for chat user search
+type ChatUserSearchResponse struct {
+	Users     []ChatUserSearchResult `json:"users"`
+	Suggested []ChatUserSearchResult `json:"suggested,omitempty"` // Suggested users (followers, following, etc.)
+}

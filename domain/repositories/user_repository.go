@@ -16,4 +16,6 @@ type UserRepository interface {
 	Delete(ctx context.Context, id uuid.UUID) error
 	List(ctx context.Context, offset, limit int) ([]*models.User, error)
 	Count(ctx context.Context) (int64, error)
+	SearchForChat(ctx context.Context, currentUserID uuid.UUID, query string, limit int) ([]*models.User, error)
+	GetSuggestedForChat(ctx context.Context, currentUserID uuid.UUID, limit int) ([]*models.User, error)
 }
